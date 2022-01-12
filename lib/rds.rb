@@ -6,10 +6,18 @@ require "unparser"
 require_relative "./rds/version"
 require_relative "./ext/rds"
 
+class AstCache
+  @asts_by_path = {}
+  def self.get(path)
+    @asts_by_path.fetch(path) do
+      @asts_by_path[path] = Parser::CurrentRuby.parse(File.read(path), path)
+    end
+  end
+end
+
 def block_ast(p, full: false)
   file, beg_line, beg_col = p.source_region
-  code = File.read(file)
-  ast = Parser::CurrentRuby.parse(code, file)
+  ast = AstCache.get(file)
   node = find_block(ast, beg_line, beg_col)
   if node.nil?
     nil
