@@ -10,7 +10,7 @@ require "rake/extensiontask"
 task build: :compile
 
 Rake::ExtensionTask.new("rds") do |ext|
-  ext.lib_dir = "lib/rds"
+  ext.lib_dir = "lib/ext"
 end
 
 task default: %i[clobber compile spec]

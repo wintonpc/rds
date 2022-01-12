@@ -2,4 +2,5 @@
 
 require "mkmf"
 
+$CFLAGS += " -I/home/pwinton/git/ruby "
 create_makefile("rds/rds")
