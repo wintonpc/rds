@@ -15,7 +15,7 @@ RSpec.describe Rds do
     expect(ast_text(block_ast(proc { x + y }, full: true))).to eql "proc { x + y }"
 
     a = block_ast(proc { x + y }, full: true)
-    b = Parser::CurrentRuby.parse(ast_text(a), a.location.begin.source_buffer.name)
+    b = Parser::CurrentRuby.parse(ast_text(a), ast_file(a))
     [a,b]
   end
   it "eval_ast" do
@@ -25,10 +25,20 @@ RSpec.describe Rds do
 
     inner = eval_ast(block_ast(proc { block_ast(proc { a + b }) }), binding)
     expect(ast_text(inner)).to eql "a + b"
+    expect(ast_file(inner)).to eql __FILE__
+    expect(ast_begin_line(inner)).to eql __LINE__ - 3
+    expect(ast_begin_column(inner)).to eql 55
+
+    inner = eval_ast(block_ast(proc { eval_ast(block_ast(proc { block_ast(proc { a + b }) }), binding) }), binding)
+    expect(ast_text(inner)).to eql "a + b"
+    expect(ast_file(inner)).to eql __FILE__
+    expect(ast_begin_line(inner)).to eql __LINE__ - 3
+    expect(ast_begin_column(inner)).to eql 81
 
     inner = eval_ast(block_ast(proc { block_ast(proc { a + b }, full: true) }), binding)
     expect(ast_text(inner)).to eql "proc { a + b }"
-    expect(inner.location.expression.source_buffer.name).to eql __FILE__
-    expect(inner.location.begin.line).to eql __LINE__ - 3
+    expect(ast_file(inner)).to eql __FILE__
+    expect(ast_begin_line(inner)).to eql __LINE__ - 3
+    expect(ast_begin_column(inner)).to eql 48
   end
 end
