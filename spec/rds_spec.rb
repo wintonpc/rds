@@ -40,5 +40,24 @@ RSpec.describe Rds do
     expect(ast_file(inner)).to eql __FILE__
     expect(ast_begin_line(inner)).to eql __LINE__ - 3
     expect(ast_begin_column(inner)).to eql 48
+
+    inner = eval_ast(block_ast(proc { block_ast(   proc   {
+        a +
+            b
+    }, full: true) }), binding)
+    expect(ast_file(inner)).to eql __FILE__
+    expect(ast_begin_line(inner)).to eql __LINE__ - 5
+    expect(ast_begin_column(inner)).to eql 51
+    expr = inner.children[2]
+    expect(ast_begin_line(expr)).to eql __LINE__ - 7
+    expect(ast_begin_column(expr)).to eql 8
+
+    get_an_ast = proc do
+      block_ast(proc { a + b })
+    end
+
+    inner1 = eval_ast(block_ast(proc { get_an_ast.() }), binding)
+    inner2 = eval_ast(block_ast(proc { get_an_ast.() }), binding)
+    expect(inner1).to be inner2
   end
 end
