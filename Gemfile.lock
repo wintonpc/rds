@@ -2,6 +2,7 @@ PATH
   remote: .
   specs:
     rds (0.1.0)
+      binding_of_caller
       parser
       unparser
 
@@ -9,6 +10,9 @@ GEM
   remote: https://rubygems.org/
   specs:
     ast (2.4.2)
+    binding_of_caller (1.0.0)
+      debug_inspector (>= 0.0.1)
+    debug_inspector (1.1.0)
     diff-lcs (1.5.0)
     parser (3.1.0.0)
       ast (~> 2.4.1)

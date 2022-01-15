@@ -1,7 +1,10 @@
 # frozen_string_literal: true
 
-def ast_text(node)
-  node.location.expression.source
+require "unparser"
+
+def ast_text(node, pretty: false)
+  s = Unparser.unparse(node)
+  pretty ? s : s.gsub(/\s*\n\s*/, " ")
 end
 
 def ast_file(node)
