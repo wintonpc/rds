@@ -29,17 +29,12 @@ def block_ast(p, full: false)
 end
 
 def find_block(node, beg_line, beg_col)
-  if node.is_a?(Parser::AST::Node)
-    if node.type == :block && ast_begin_line(node) == beg_line && node.location.begin.column == beg_col
-      return node
-    else
-      node.children.each do |c|
-        found = find_block(c, beg_line, beg_col)
-        return found if found
-      end
-    end
+  return nil unless node.is_a?(Parser::AST::Node)
+  if node.type == :block && ast_begin_line(node) == beg_line && node.location.begin.column == beg_col
+    node
+  else
+    node.children.lazy.map { |c| find_block(c, beg_line, beg_col) }.reject(&:nil?).first
   end
-  nil
 end
 
 def eval_ast(ast, binding)
