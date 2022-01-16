@@ -50,7 +50,7 @@ class Asts
 
     def map(ast)
       code = Unparser.unparse(ast)
-      # need object_id because AST::Node#hash is based on structure not location
+      # need object_id because AST::Node#hash is a function of content and excludes location
       @mapped.fetch(ast.object_id) do
         @mapped[ast] = begin
           ast2 = Parser::CurrentRuby.parse(code, "ast##{ast.object_id}")
@@ -101,12 +101,26 @@ def quasisyntax(&block)
   do_unsyntax(block_ast(block), block.binding)
 end
 
-def do_unsyntax(x, b)
+def do_unsyntax(x, b, hint=x)
   return x unless x.is_a?(Parser::AST::Node)
   case x
-  in [:send, nil, :unsyntax, arg]
-    Asts.eval(arg, b)
+  in [:send, nil, :unsyntax | :_u, expr]
+    datum_to_syntax(Asts.eval(expr, b), hint)
+  in [:block, [:send, nil, :unsyntax | :_u], [:args], expr]
+    datum_to_syntax(Asts.eval(expr, b), hint)
   else
-    Parser::AST::Node.new(x.type, x.children.map { |c| do_unsyntax(c, b) }, location: x.location)
+    Parser::AST::Node.new(x.type, x.children.map { |c| do_unsyntax(c, b, hint) }, location: x.location)
   end
 end
+
+def datum_to_syntax(x, hint)
+  if x.is_a?(Integer)
+    Parser::AST::Node.new(:int, [x], location: hint.location)
+  else
+    x
+  end
+end
+
+alias _s syntax
+alias _q quasisyntax
+

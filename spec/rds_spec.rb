@@ -39,15 +39,15 @@ RSpec.describe Rds do
     expect(ast_begin_column(inner)).to eql 41
 
     inner = Asts.eval(syntax { block_ast(   proc   {
-        a +
-            b
+      a +
+          b
     }, full: true) })
     expect(ast_file(inner)).to eql __FILE__
     expect(ast_begin_line(inner)).to eql __LINE__ - 5
     expect(ast_begin_column(inner)).to eql 44
     expr = inner.children[2]
     expect(ast_begin_line(expr)).to eql __LINE__ - 7
-    expect(ast_begin_column(expr)).to eql 8
+    expect(ast_begin_column(expr)).to eql 6
 
     get_an_ast = proc do
       block_ast(proc { a + b })
@@ -66,5 +66,15 @@ RSpec.describe Rds do
     s1 = syntax { foo(a) }
     s2 = quasisyntax { b + unsyntax(s1) }
     expect(ast_text(s2)).to eql "b + foo(a)"
+
+    a = 1
+    s = quasisyntax { unsyntax(a) + 2 + unsyntax { b = 3; quasisyntax { unsyntax(b) + 4 } } }
+    expect(ast_text(s)).to eql "1 + 2 + 3.+(4)"
+    expect(Asts.eval(s)).to eql 10
+
+    a = 1
+    s = _q { _u(a) + 2 + _u { b = 3; _q { _u(b) + 4 } } }
+    expect(ast_text(s)).to eql "1 + 2 + 3.+(4)"
+    expect(Asts.eval(s)).to eql 10
   end
 end
