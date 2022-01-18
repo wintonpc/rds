@@ -82,12 +82,46 @@ RSpec.describe Rds do
       quasisyntax { 5 + unsyntax(stx.children[0].children[2]) }
     end
 
+    def self.stx_args(stx)
+      stx.children[0].children.drop(2)
+    end
+
+    # define_syntax(:or2) do |stx|
+    #   sargs = stx_args(stx)
+    #   case sargs
+    #   in []
+    #     syntax { false }
+    #   in [e, *es]
+    #     quasisyntax do
+    #       t = unsyntax(e)
+    #       t ? t : or2(unsyntax_splicing(es)) {}
+    #     end
+    #   end
+    # end
+
     def go(n)
       five_plus(n) {}
     end
+
+    attr_reader :log
+    def go_or
+      @log = []
+      # logged_return(false) || logged_return(true) || logged_return(false)
+      or2(logged_return(false), logged_return(true), logged_return(false)) {}
+    end
+
+    def logged_return(x)
+      log.push(x)
+      x
+    end
   end
   it "define_syntax" do
-    expect(Foo.new.go(2)).to eql 7
-    expect(Foo.new.go(3)).to eql 8
+    # s = syntax { foo(a, b) }
+    foo = Foo.new
+    expect(foo.go(2)).to eql 7
+    expect(foo.go(3)).to eql 8
+
+    # foo.go_or
+    # expect(foo.log).to eql [false, true]
   end
 end
