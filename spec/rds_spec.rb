@@ -77,4 +77,17 @@ RSpec.describe Rds do
     expect(ast_text(s)).to eql "1 + 2 + 3.+(4)"
     expect(Asts.eval(s)).to eql 10
   end
+  class Foo
+    define_syntax(:five_plus) do |stx|
+      quasisyntax { 5 + unsyntax(stx.children[0].children[2]) }
+    end
+
+    def go(n)
+      five_plus(n) {}
+    end
+  end
+  it "define_syntax" do
+    expect(Foo.new.go(2)).to eql 7
+    expect(Foo.new.go(3)).to eql 8
+  end
 end

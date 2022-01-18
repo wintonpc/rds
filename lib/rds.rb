@@ -124,3 +124,12 @@ end
 alias _s syntax
 alias _q quasisyntax
 
+def define_syntax(name, &transform)
+  define_method(name) do |*_, &block|
+    stx = block_ast(block, full: true)
+    puts "in (#{stx.object_id}):\n#{ast_text(stx)}"
+    stx2 = transform.(stx)
+    puts "out:\n#{ast_text(stx2)}"
+    Asts.eval(stx2, block.binding)
+  end
+end
