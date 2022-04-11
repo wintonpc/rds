@@ -6,6 +6,6 @@ require_relative_expand("rdm1")
 
 RSpec.describe Rdm do
   it "works" do
-    expect(five).to eql 5
+    expect(Rdm1.make_a_calibration).to eql [:calibration, 2, :none, :ignore]
   end
 end

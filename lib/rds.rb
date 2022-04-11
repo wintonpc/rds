@@ -105,11 +105,15 @@ def do_unsyntax(x, b, hint=x)
   return x unless x.is_a?(Parser::AST::Node)
   case x
   in [:send, nil, :unsyntax | :_u, expr]
-    datum_to_syntax(Asts.eval(expr, b), hint)
+    [datum_to_syntax(Asts.eval(expr, b), hint)]
   in [:block, [:send, nil, :unsyntax | :_u], [:args], expr]
+    [datum_to_syntax(Asts.eval(expr, b), hint)]
+  in [:send, nil, :unsyntax_splicing | :_us, expr]
+    datum_to_syntax(Asts.eval(expr, b), hint)
+  in [:block, [:send, nil, :unsyntax_splicing | :_us], [:args], expr]
     datum_to_syntax(Asts.eval(expr, b), hint)
   else
-    Parser::AST::Node.new(x.type, x.children.map { |c| do_unsyntax(c, b, hint) }, location: x.location)
+    Parser::AST::Node.new(x.type, x.children.flat_map { |c| do_unsyntax(c, b, hint) }, location: x.location)
   end
 end
 
