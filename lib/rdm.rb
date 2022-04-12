@@ -12,7 +12,7 @@ Parser::Builders::Default.emit_kwargs              = true
 Parser::Builders::Default.emit_match_pattern       = true
 
 $transformers = {}
-$debug_rdm = false
+$debug_rdm = true
 
 class Rdm
   class << self
@@ -32,9 +32,15 @@ class Rdm
 
     def expand(node)
       case node
-      in Parser::AST::Node[:send, nil, ident, *args] if $transformers.keys.include?(ident)
+      in [:send, nil, ident, *args] if $transformers.keys.include?(ident)
         puts "expanding #{ident} #{node}" if $debug_rdm
         result = $transformers[ident].(ident, args)
+        puts "expanded #{result}" if $debug_rdm
+        result
+      in [:block, [:send, nil, ident, *args], _, body] if $transformers.keys.include?(ident)
+        puts "expanding #{ident} #{node}" if $debug_rdm
+        result = $transformers[ident].(ident, args, body)
+        puts "expanded #{result}" if $debug_rdm
         result
       in Parser::AST::Node[type, *children]
         Parser::AST::Node.new(type, children.map { |c| expand(c) }, location: node.location)
@@ -76,6 +82,11 @@ module Kernel
     end
     Process.waitpid(child_pid)
     $?.exitstatus == 0 or raise "require_relative_expand #{path} failed"
+    gig = File.expand_path("../.gitignore", rel_path)
+    entry = "/#{File.basename(rb_path)}"
+    unless File.exists?(gig) && File.readlines(gig).map(&:strip).include?(entry)
+      File.open(gig, "a+") { |op| op.puts(entry) }
+    end
     require_relative(rel_path)
   end
 
@@ -98,7 +109,8 @@ module Kernel
     temps.each { |t| File.delete(t) }
   end
 
-  def defmacro(name, &transformer)
+  def defmacro(name, transformer=nil, &block)
+    transformer ||= block
     $transformers[name] = transformer
     puts "defined macro #{name}" if $debug_rdm
   end

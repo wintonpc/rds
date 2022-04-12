@@ -1,3 +1,5 @@
+require_relative_expand "syntax_rules"
+
 defmacro(:defproto) do |_, args|
   type, *fields = args
   quasisyntax do
@@ -48,18 +50,51 @@ def make_a_calibration
   cal
 end
 
-defmacro(:or2) do |_, args|
-  if args.none?
-    syntax { false }
-  else
-    quasisyntax do
-      _t = unsyntax(args[0])
-      if _t
-        _t
+# defmacro(:or2) do |_, args|
+#   if args.none?
+#     syntax { false }
+#   else
+#     quasisyntax do
+#       _t = unsyntax(args[0])
+#       if _t
+#         _t
+#       else
+#         or2(unsyntax_splicing(args[1..]))
+#       end
+#     end
+#   end
+# end
+
+# I want
+defmacro(:or2,
+  syntax_rules do
+    case
+    when []
+      false
+    when [e1, e2..]
+      t = e1
+      if t
+        t
       else
-        or2(unsyntax_splicing(args[1..]))
+        or2(e2..)
       end
     end
+  end)
+
+# to expand to
+defmacro(:or2) do |k, args|
+  case args
+  in []
+    quasisyntax { false }
+  in [e1, *e2]
+    quasisyntax {
+      t = unsyntax(e1)
+      if t
+        t
+      else
+        or2(unsyntax_splicing(e2))
+      end
+    }
   end
 end
 
