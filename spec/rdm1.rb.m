@@ -47,3 +47,25 @@ def make_a_calibration
   set_calibration_degree(cal, calibration_degree(cal) + 1)
   cal
 end
+
+defmacro(:or2) do |_, args|
+  if args.none?
+    syntax { false }
+  else
+    quasisyntax do
+      _t = unsyntax(args[0])
+      if _t
+        _t
+      else
+        or2(unsyntax_splicing(args[1..]))
+      end
+    end
+  end
+end
+
+def or_some_stuff
+  exec_last = false
+  result = or2(false, 2, 3 + (exec_last = true))
+  !exec_last or raise "or2 failed"
+  result
+end

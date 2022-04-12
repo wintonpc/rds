@@ -12,17 +12,17 @@ Parser::Builders::Default.emit_kwargs              = true
 Parser::Builders::Default.emit_match_pattern       = true
 
 $transformers = {}
-$show_intermediate_errors = false
+$debug_rdm = false
 
 class Rdm
   class << self
     def expand!(inp, outp)
-      puts "expand! #{inp}"
+      puts "expand! #{inp}" if $debug_rdm
       begin
-        puts "loading #{inp}"
+        puts "loading #{inp}" if $debug_rdm
         load(inp)
       rescue => e
-        puts "Intermediate error: #{e}" if $show_intermediate_errors
+        puts "Intermediate error: #{e}" if $debug_rdm
       end
 
       e_in = Parser::CurrentRuby.parse(File.read(inp), inp)
@@ -33,7 +33,7 @@ class Rdm
     def expand(node)
       case node
       in Parser::AST::Node[:send, nil, ident, *args] if $transformers.keys.include?(ident)
-        puts "expanding #{ident} #{node}"
+        puts "expanding #{ident} #{node}" if $debug_rdm
         result = $transformers[ident].(ident, args)
         result
       in Parser::AST::Node[type, *children]
@@ -53,7 +53,7 @@ class Rdm
 
     def debug_unparse(n)
       return unless n.is_a?(Parser::AST::Node)
-      puts "debug_unparse #{n}"
+      puts "debug_unparse #{n}" if $debug_rdm
       n.children.each do |c|
         begin
           Unparser.unparse(c)
@@ -100,6 +100,6 @@ module Kernel
 
   def defmacro(name, &transformer)
     $transformers[name] = transformer
-    puts "defined macro #{name}"
+    puts "defined macro #{name}" if $debug_rdm
   end
 end
