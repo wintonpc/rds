@@ -65,7 +65,7 @@ class Asts
       if a.type == :block
         # use b.location.begin.column rather than ast_begin_column because it matches what Proc#source_region returns
         @location_map[[ast_file(b), ast_begin_line(b), b.location.begin.column]] =
-            [ast_file(a), ast_begin_line(a), a.location.begin.column]
+          [ast_file(a), ast_begin_line(a), a.location.begin.column]
       end
       a.children.zip(b.children, &method(:do_map))
     end
@@ -120,6 +120,8 @@ end
 def datum_to_syntax(x, hint)
   if x.is_a?(Integer)
     Parser::AST::Node.new(:int, [x], location: hint.location)
+  elsif x.is_a?(Symbol)
+    Parser::AST::Node.new(:sym, [x], location: hint.location)
   else
     x
   end
