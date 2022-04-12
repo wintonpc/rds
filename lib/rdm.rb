@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "set"
 require "unparser"
 require "parser/current"
 Parser::Builders::Default.emit_lambda              = true
@@ -12,7 +13,9 @@ Parser::Builders::Default.emit_kwargs              = true
 Parser::Builders::Default.emit_match_pattern       = true
 
 $transformers = {}
-$debug_rdm = true
+$debug_rdm = false
+$require_relative_expand_done = Set.new
+$trace_names = [:syntax_rules]
 
 class Rdm
   class << self
@@ -22,7 +25,7 @@ class Rdm
         puts "loading #{inp}" if $debug_rdm
         load(inp)
       rescue => e
-        puts "Intermediate error: #{e}" if $debug_rdm
+        puts "Expand-time load error: #{e}" if $debug_rdm
       end
 
       e_in = Parser::CurrentRuby.parse(File.read(inp), inp)
@@ -30,18 +33,16 @@ class Rdm
       File.write(outp, do_unparse(e_out))
     end
 
+    private
+
     def expand(node)
       case node
+      in [:send, nil, :defmacro, [:sym, ident], *_] if $transformers.keys.include?(ident)
+        node
       in [:send, nil, ident, *args] if $transformers.keys.include?(ident)
-        puts "expanding #{ident} #{node}" if $debug_rdm
-        result = $transformers[ident].(ident, args)
-        puts "expanded #{result}" if $debug_rdm
-        result
+        trace_expand(ident, node) { $transformers[ident].(ident, args, nil) }
       in [:block, [:send, nil, ident, *args], _, body] if $transformers.keys.include?(ident)
-        puts "expanding #{ident} #{node}" if $debug_rdm
-        result = $transformers[ident].(ident, args, body)
-        puts "expanded #{result}" if $debug_rdm
-        result
+        trace_expand(ident, node) { $transformers[ident].(ident, args, body) }
       in Parser::AST::Node[type, *children]
         Parser::AST::Node.new(type, children.map { |c| expand(c) }, location: node.location)
       else
@@ -49,9 +50,23 @@ class Rdm
       end
     end
 
+    def trace_expand(ident, node)
+      if $debug_rdm || $trace_names.include?(ident)
+        puts "-- expand #{ident} ".ljust(40, "-")
+        puts do_unparse(node)
+        result = yield
+        puts "-" * 40
+        # puts result
+        puts do_unparse(result)
+        result
+      else
+        yield
+      end
+    end
+
     def do_unparse(n)
       Unparser.unparse(n)
-    rescue => e
+    rescue Exception =>  e
       puts e
       debug_unparse(n)
       raise e
@@ -72,8 +87,16 @@ class Rdm
 end
 
 module Kernel
+  def defmacro(name, transformer=nil, &block)
+    transformer ||= block
+    $transformers[name] = transformer
+    puts "defined macro #{name}" if $debug_rdm
+  end
+
   def require_relative_expand(path)
     rel_path = File.expand_path(path, File.dirname(caller[0].split(":")[0]))
+    return false if $require_relative_expand_done.include?(rel_path)
+    $require_relative_expand_done.add(rel_path)
     rb_path = rel_path + ".rb"
     m_path = rb_path + ".m"
     child_pid = fork do
@@ -82,15 +105,13 @@ module Kernel
     end
     Process.waitpid(child_pid)
     $?.exitstatus == 0 or raise "require_relative_expand #{path} failed"
-    gig = File.expand_path("../.gitignore", rel_path)
-    entry = "/#{File.basename(rb_path)}"
-    unless File.exists?(gig) && File.readlines(gig).map(&:strip).include?(entry)
-      File.open(gig, "a+") { |op| op.puts(entry) }
-    end
+    ensure_gitignore_entry(rel_path, rb_path)
     require_relative(rel_path)
   end
 
-  private def file_fixed_point(inp)
+  private
+
+  def file_fixed_point(inp)
     i = 1
     base = inp
     last_text = File.read(inp)
@@ -109,9 +130,11 @@ module Kernel
     temps.each { |t| File.delete(t) }
   end
 
-  def defmacro(name, transformer=nil, &block)
-    transformer ||= block
-    $transformers[name] = transformer
-    puts "defined macro #{name}" if $debug_rdm
+  def ensure_gitignore_entry(rel_path, rb_path)
+    gig = File.expand_path("../.gitignore", rel_path)
+    entry = "/#{File.basename(rb_path)}"
+    unless File.exists?(gig) && File.readlines(gig).map(&:strip).include?(entry)
+      File.open(gig, "a+") { |op| op.puts(entry) }
+    end
   end
 end

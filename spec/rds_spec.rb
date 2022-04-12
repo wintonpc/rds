@@ -79,6 +79,23 @@ RSpec.describe Rds do
 
     s = _q { _q { _u(_u(a).m) } }
     expect(ast_text(s)).to eql "_q { _u(1.m) }"
+
+    pat = syntax { x in [a] }.children[1]
+    s = _q do
+      case [1]
+      in { unsyntax: ^pat }
+        a
+      end
+    end
+    expect(ast_text(s)).to eql "case [1] in [a] then a end"
+
+    pat = syntax { case q; in [a]; a; end }.children[1]
+    s = _q do
+      case x
+      when case_unsyntax_splicing([pat])
+      end
+    end
+    expect(ast_text(s)).to eql "case x in [a] then a end"
   end
   class Foo
     define_syntax(:five_plus) do |stx|

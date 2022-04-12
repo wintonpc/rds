@@ -98,14 +98,26 @@ def syntax(&block)
 end
 
 def quasisyntax(&block)
-  do_unsyntax(block_ast(block), block.binding)[0]
+  do_unsyntax(remove_special_constructs(block_ast(block)), block.binding)[0]
+end
+
+def remove_special_constructs(x)
+  case x
+  in [:send, nil, :_case, subject, *cases]
+    real_cases = cases.map do |c|
+      c => [:block, [:send, nil, :_, [:begin, [:match_pattern_p, _, pat]]], _, expr]
+      Parser::AST::Node.new(:in_pattern, [pat, nil, remove_special_constructs(expr)], location: c.location)
+    end
+    Parser::AST::Node.new(:case_match, [subject, *real_cases, nil], location: x.location)
+  in [type, *children]
+    Parser::AST::Node.new(type, children.map { |c| remove_special_constructs(c) }, location: x.location)
+  else
+    x
+  end
 end
 
 def do_unsyntax(x, b, hint=x, depth=0)
   return x unless x.is_a?(Parser::AST::Node)
-  if x.type == :indexasgn
-    "".to_s
-  end
   if depth == 0
     case x
     in [:send, nil, :unsyntax | :_u, expr]
@@ -116,27 +128,39 @@ def do_unsyntax(x, b, hint=x, depth=0)
       datum_to_syntax(Asts.eval(expr, b), hint)
     in [:block, [:send, nil, :unsyntax_splicing | :_us], [:args], expr]
       datum_to_syntax(Asts.eval(expr, b), hint)
+    in [:hash_pattern, [:pair, [:sym, :unsyntax], [:pin, expr]]]
+      [datum_to_syntax(Asts.eval(expr, b), hint)]
+    in [:when, [:send, nil, :case_unsyntax_splicing, expr], nil]
+      datum_to_syntax(Asts.eval(expr, b), hint)
     in [:block, [:send, nil, :quasisyntax | :_q], *_]
-      [Parser::AST::Node.new(x.type, x.children.flat_map { |c| do_unsyntax(c, b, hint, depth + 1) }, location: x.location)]
+      [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth + 1) }]
     else
-      [Parser::AST::Node.new(x.type, x.children.flat_map { |c| do_unsyntax(c, b, hint, depth) }, location: x.location)]
+      [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth) }]
     end
   else
     case x
     in [:send, nil, :unsyntax | :_u, *_]
-      [Parser::AST::Node.new(x.type, x.children.flat_map { |c| do_unsyntax(c, b, hint, depth - 1) }, location: x.location)]
+      [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth - 1) }]
     in [:block, [:send, nil, :unsyntax | :_u], *_]
-      [Parser::AST::Node.new(x.type, x.children.flat_map { |c| do_unsyntax(c, b, hint, depth - 1) }, location: x.location)]
+      [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth - 1) }]
     in [:send, nil, :unsyntax_splicing | :_us, *_]
-      [Parser::AST::Node.new(x.type, x.children.flat_map { |c| do_unsyntax(c, b, hint, depth - 1) }, location: x.location)]
+      [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth - 1) }]
     in [:block, [:send, nil, :unsyntax_splicing | :_us], *_]
-      [Parser::AST::Node.new(x.type, x.children.flat_map { |c| do_unsyntax(c, b, hint, depth - 1) }, location: x.location)]
+      [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth - 1) }]
+    in [:hash_pattern, [:pair, [:sym, :unsyntax], [:pin, _]]]
+      [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth - 1) }]
+    in [:when, [:send, nil, :case_unsyntax_splicing, _], nil]
+      [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth - 1) }]
     in [:block, [:send, nil, :quasisyntax | :_q], *_]
-      [Parser::AST::Node.new(x.type, x.children.flat_map { |c| do_unsyntax(c, b, hint, depth + 1) }, location: x.location)]
+      [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth + 1) }]
     else
-      [Parser::AST::Node.new(x.type, x.children.flat_map { |c| do_unsyntax(c, b, hint, depth) }, location: x.location)]
+      [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth) }]
     end
   end
+end
+
+def flat_map_children(node, &block)
+  Parser::AST::Node.new(node.type, node.children.flat_map(&block), location: node.location)
 end
 
 def datum_to_syntax(x, hint)
@@ -148,6 +172,8 @@ def datum_to_syntax(x, hint)
     Parser::AST::Node.new(:str, [x], location: hint.location)
   elsif x.nil?
     Parser::AST::Node.new(:nil, [], location: hint.location)
+  elsif x == false
+    Parser::AST::Node.new(:false, [], location: hint.location)
   elsif x.is_a?(Parser::AST::Node) || x.is_a?(Array)
     x
   else
@@ -165,9 +191,7 @@ alias _q quasisyntax
 def define_syntax(name, &transform)
   define_method(name) do |*_, &block|
     stx = block_ast(block, full: true)
-    puts "in (#{stx.object_id}):\n#{ast_text(stx)}"
     stx2 = transform.(stx)
-    puts "out:\n#{ast_text(stx2)}"
     Asts.eval(stx2, block.binding)
   end
 end
