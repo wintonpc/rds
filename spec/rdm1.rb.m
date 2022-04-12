@@ -7,16 +7,15 @@ defmacro(:defproto) do |_, args|
         arg => [:pair, [:sym, field], value]
         [field, value]
       end.to_h.values_at(unsyntax_splicing(fields))
-      tag = unsyntax(type)
-      quasisyntax { [unsyntax(tag), unsyntax_splicing(array_args)] }
+      quasisyntax { [unsyntax(unsyntax(type)), unsyntax_splicing(array_args)] }
     end
     unsyntax_splicing(
       fields.each_with_index.map do |f, fi|
         quasisyntax do
-          fi2 = unsyntax(fi)
           defmacro(unsyntax(:"#{syntax_to_datum(type)}_#{syntax_to_datum(f)}")) do |k, args|
+            arr = args[0]
             quasisyntax do
-              unsyntax(args[0])[unsyntax(fi2 + 1)]
+              unsyntax(arr)[unsyntax(unsyntax(fi) + 1)]
             end
           end
         end
@@ -25,8 +24,12 @@ defmacro(:defproto) do |_, args|
     unsyntax_splicing(
       fields.each_with_index.map do |f, fi|
         quasisyntax do
-          defmacro(unsyntax(:"set_#{syntax_to_datum(type)}_#{syntax_to_datum(f)}")) do |x, v|
-            syntax { 5 }
+          defmacro(unsyntax(:"set_#{syntax_to_datum(type)}_#{syntax_to_datum(f)}")) do |k, args|
+            arr = args[0]
+            val = args[1]
+            quasisyntax do
+              unsyntax(arr)[unsyntax(unsyntax(fi) + 1)] = unsyntax(val)
+            end
           end
         end
       end
@@ -41,6 +44,6 @@ def make_a_calibration
   d = 1
   cal = make_calibration(degree: d + 1, weighting: "none", origin: "ignore",
     compound: make_compound(name: "morphine"))
-  set_calibration_degree(calibration_degree(cal) + 1)
+  set_calibration_degree(cal, calibration_degree(cal) + 1)
   cal
 end
