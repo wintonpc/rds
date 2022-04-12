@@ -76,6 +76,9 @@ RSpec.describe Rds do
     s = _q { _u(a) + 2 + _u { b = 3; _q { _u(b) + 4 } } }
     expect(ast_text(s)).to eql "1 + 2 + 3.+(4)"
     expect(Asts.eval(s)).to eql 10
+
+    s = _q { _q { _u(_u(a).m) } }
+    expect(ast_text(s)).to eql "_q { _u(1.m) }"
   end
   class Foo
     define_syntax(:five_plus) do |stx|

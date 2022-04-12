@@ -101,19 +101,34 @@ def quasisyntax(&block)
   do_unsyntax(block_ast(block), block.binding)
 end
 
-def do_unsyntax(x, b, hint=x)
+def do_unsyntax(x, b, hint=x, depth=0)
   return x unless x.is_a?(Parser::AST::Node)
-  case x
-  in [:send, nil, :unsyntax | :_u, expr]
-    [datum_to_syntax(Asts.eval(expr, b), hint)]
-  in [:block, [:send, nil, :unsyntax | :_u], [:args], expr]
-    [datum_to_syntax(Asts.eval(expr, b), hint)]
-  in [:send, nil, :unsyntax_splicing | :_us, expr]
-    datum_to_syntax(Asts.eval(expr, b), hint)
-  in [:block, [:send, nil, :unsyntax_splicing | :_us], [:args], expr]
-    datum_to_syntax(Asts.eval(expr, b), hint)
+  if depth == 0
+    case x
+    in [:send, nil, :unsyntax | :_u, expr]
+      [datum_to_syntax(Asts.eval(expr, b), hint)]
+    in [:block, [:send, nil, :unsyntax | :_u], [:args], expr]
+      [datum_to_syntax(Asts.eval(expr, b), hint)]
+    in [:send, nil, :unsyntax_splicing | :_us, expr]
+      datum_to_syntax(Asts.eval(expr, b), hint)
+    in [:block, [:send, nil, :unsyntax_splicing | :_us], [:args], expr]
+      datum_to_syntax(Asts.eval(expr, b), hint)
+    in [:block, [:send, nil, :quasisyntax | :_q], *_]
+      Parser::AST::Node.new(x.type, x.children.flat_map { |c| do_unsyntax(c, b, hint, depth + 1) }, location: x.location)
+    else
+      Parser::AST::Node.new(x.type, x.children.flat_map { |c| do_unsyntax(c, b, hint, depth) }, location: x.location)
+    end
   else
-    Parser::AST::Node.new(x.type, x.children.flat_map { |c| do_unsyntax(c, b, hint) }, location: x.location)
+    case x
+    in [:send, nil, :unsyntax | :_u | :unsyntax_splicing | :_us, *_]
+      Parser::AST::Node.new(x.type, x.children.flat_map { |c| do_unsyntax(c, b, hint, depth - 1) }, location: x.location)
+    in [:block, [:send, nil, :unsyntax | :_u | :unsyntax_splicing | :_us], *_]
+      Parser::AST::Node.new(x.type, x.children.flat_map { |c| do_unsyntax(c, b, hint, depth - 1) }, location: x.location)
+    in [:block, [:send, nil, :quasisyntax | :_q], *_]
+      Parser::AST::Node.new(x.type, x.children.flat_map { |c| do_unsyntax(c, b, hint, depth + 1) }, location: x.location)
+    else
+      Parser::AST::Node.new(x.type, x.children.flat_map { |c| do_unsyntax(c, b, hint, depth) }, location: x.location)
+    end
   end
 end
 
@@ -122,9 +137,15 @@ def datum_to_syntax(x, hint)
     Parser::AST::Node.new(:int, [x], location: hint.location)
   elsif x.is_a?(Symbol)
     Parser::AST::Node.new(:sym, [x], location: hint.location)
+  elsif x.is_a?(String)
+    Parser::AST::Node.new(:str, [x], location: hint.location)
   else
     x
   end
+end
+
+def syntax_to_datum(stx)
+  stx.children[0]
 end
 
 alias _s syntax

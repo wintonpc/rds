@@ -12,7 +12,7 @@ Parser::Builders::Default.emit_kwargs              = true
 Parser::Builders::Default.emit_match_pattern       = true
 
 $transformers = {}
-$show_intermediate_errors = false
+$show_intermediate_errors = true
 
 class Rdm
   class << self
@@ -51,7 +51,6 @@ module Kernel
     Process.waitpid(child_pid)
     $?.exitstatus == 0 or raise "require_relative_expand #{path} failed"
     require_relative(rel_path)
-    # File.delete(rb_path)
   end
 
   private def file_fixed_point(inp)
