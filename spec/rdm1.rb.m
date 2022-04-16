@@ -49,20 +49,41 @@ require_relative_expand "syntax_rules"
 #   cal
 # end
 
-defmacro(:or2,
-  syntax_rules do
-    case
-    when []
-      false
-    when [e1, e2 ...]
-      t = e1
-      if t
-        t
-      else
-        or2(e2 ...)
-      end
+# defmacro(:or2,
+#   syntax_rules do
+#     case
+#     when []
+#       false
+#     when [e1, e2 ...]
+#       t = e1
+#       if t
+#         t
+#       else
+#         or2(e2 ...)
+#       end
+#     end
+#   end)
+
+# defmacro(:kvflatten,
+#   syntax_rules do
+#     case
+#     when [{v => e} ...]
+#       [v ..., e ...]
+#     end
+#   end
+# )
+
+defmacro(:kvflatten) do |(_, *args)|
+  case args
+  in [*erange]
+    pairs = erange.select { |x| x.type == :kwargs }.flat_map(&:children)
+    vs = pairs.map { |x| x.children[0] }
+    es = pairs.map { |x| x.children[1] }
+    quasisyntax do
+      [unsyntax_splicing(vs), unsyntax_splicing(es)]
     end
-  end)
+  end
+end
 
 # defmacro(:let2,
 #   syntax_rules do
@@ -75,4 +96,8 @@ defmacro(:or2,
 
 def test_or2
   or2(false, 2, 3 + raise("oops"))
+end
+
+def test_kvflatten
+  kvflatten(a: 1, b: 2)
 end

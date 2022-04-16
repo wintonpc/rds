@@ -118,6 +118,15 @@ RSpec.describe Rds do
     end
     expect(ast_text(s)).to eql "proc { |w, x, y = 1, z:| w + x + y + z }"
   end
+  it "delete me" do
+    s = _s do
+      case
+      when [{v => e} ...]
+        [v ..., e ...]
+      end
+    end
+    puts s
+  end
 
   def lvar(name)
     Parser::AST::Node.new(:lvar, [name])
