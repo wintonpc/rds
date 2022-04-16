@@ -132,6 +132,8 @@ def do_unsyntax(x, b, hint=x, depth=0)
       [datum_to_syntax(Asts.eval(expr, b), hint)]
     in [:when, [:send, nil, :case_unsyntax_splicing, expr], nil]
       datum_to_syntax(Asts.eval(expr, b), hint)
+    in [:kwoptarg, name, expr] if name.match(/^(unsyntax|_u)/)
+      [datum_to_syntax(Asts.eval(expr, b), hint)]
     in [:block, [:send, nil, :quasisyntax | :_q], *_]
       [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth + 1) }]
     else
@@ -150,6 +152,8 @@ def do_unsyntax(x, b, hint=x, depth=0)
     in [:hash_pattern, [:pair, [:sym, :unsyntax], [:pin, _]]]
       [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth - 1) }]
     in [:when, [:send, nil, :case_unsyntax_splicing, _], nil]
+      [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth - 1) }]
+    in [:kwoptarg, name, _] if name.match(/^(unsyntax|_u)/)
       [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth - 1) }]
     in [:block, [:send, nil, :quasisyntax | :_q], *_]
       [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth + 1) }]

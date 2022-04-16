@@ -79,7 +79,8 @@ RSpec.describe Rds do
 
     s = _q { _q { _u(_u(a).m) } }
     expect(ast_text(s)).to eql "_q { _u(1.m) }"
-
+  end
+  it "unsyntax in ruby pattern" do
     pat = syntax { x in [a] }.children[1]
     s = _q do
       case [1]
@@ -88,7 +89,8 @@ RSpec.describe Rds do
       end
     end
     expect(ast_text(s)).to eql "case [1] in [a] then a end"
-
+  end
+  it "unsyntax_splicing cases" do
     pat = syntax { case q; in [a]; a; end }.children[1]
     s = _q do
       case x
@@ -97,42 +99,26 @@ RSpec.describe Rds do
     end
     expect(ast_text(s)).to eql "case x in [a] then a end"
   end
+  it "unsyntax in block arguments" do
+    a = Parser::AST::Node.new(:arg, [:x])
+    b = Parser::AST::Node.new(:kwarg, [:y])
+    s = _q do
+      proc { |unsyntax: a, _u2: b| _u(lvar(:x)) + _u(lvar(:y)) + 1 }
+    end
+    expect(ast_text(s)).to eql "proc { |x, y:| x + y + 1 }"
+  end
+
+  def lvar(name)
+    Parser::AST::Node.new(:lvar, [name])
+  end
+
   class Foo
     define_syntax(:five_plus) do |stx|
       quasisyntax { 5 + unsyntax(stx.children[0].children[2]) }
     end
 
-    def self.stx_args(stx)
-      stx.children[0].children.drop(2)
-    end
-
-    # define_syntax(:or2) do |stx|
-    #   sargs = stx_args(stx)
-    #   case sargs
-    #   in []
-    #     syntax { false }
-    #   in [e, *es]
-    #     quasisyntax do
-    #       t = unsyntax(e)
-    #       t ? t : or2(unsyntax_splicing(es)) {}
-    #     end
-    #   end
-    # end
-
     def go(n)
       five_plus(n) {}
-    end
-
-    attr_reader :log
-    def go_or
-      @log = []
-      # logged_return(false) || logged_return(true) || logged_return(false)
-      or2(logged_return(false), logged_return(true), logged_return(false)) {}
-    end
-
-    def logged_return(x)
-      log.push(x)
-      x
     end
   end
   it "define_syntax" do
