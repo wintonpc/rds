@@ -1,9 +1,9 @@
 require_relative_expand "syntax_rules"
 
-# defmacro(:defproto) do |_, args|
+# defmacro(:defproto) do |(_, *args)|
 #   type, *fields = args
 #   quasisyntax do
-#     defmacro(unsyntax(:"make_#{syntax_to_datum(type)}")) do |k, args|
+#     defmacro(unsyntax(:"make_#{syntax_to_datum(type)}")) do |(_, *args)|
 #       args[0] => [:kwargs, *pairs]
 #       array_args = pairs.map do |arg|
 #         arg => [:pair, [:sym, field], value]
@@ -14,7 +14,7 @@ require_relative_expand "syntax_rules"
 #     unsyntax_splicing(
 #       fields.each_with_index.map do |f, fi|
 #         quasisyntax do
-#           defmacro(unsyntax(:"#{syntax_to_datum(type)}_#{syntax_to_datum(f)}")) do |k, args|
+#           defmacro(unsyntax(:"#{syntax_to_datum(type)}_#{syntax_to_datum(f)}")) do |(_, *args)|
 #             arr = args[0]
 #             quasisyntax do
 #               unsyntax(arr)[unsyntax(unsyntax(fi) + 1)]
@@ -26,7 +26,7 @@ require_relative_expand "syntax_rules"
 #     unsyntax_splicing(
 #       fields.each_with_index.map do |f, fi|
 #         quasisyntax do
-#           defmacro(unsyntax(:"set_#{syntax_to_datum(type)}_#{syntax_to_datum(f)}")) do |k, args|
+#           defmacro(unsyntax(:"set_#{syntax_to_datum(type)}_#{syntax_to_datum(f)}")) do |(_, *args)|
 #             arr = args[0]
 #             val = args[1]
 #             quasisyntax do

@@ -1,7 +1,8 @@
-defmacro(:syntax_rules) do |_, _, body|
+defmacro(:syntax_rules) do |stx|
+  body = stx.last
   body => [:case, _, *cases, else_case]
   quasisyntax do
-    proc do |_, args|
+    proc do |(_, *args)|
       case args
       when case_unsyntax_splicing(cases.map do |c|
         c => [:when, cpat, cbody]

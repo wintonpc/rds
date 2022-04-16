@@ -40,9 +40,9 @@ class Rdm
       in [:send, nil, :defmacro, [:sym, ident], *_] if $transformers.keys.include?(ident)
         node
       in [:send, nil, ident, *args] if $transformers.keys.include?(ident)
-        trace_expand(ident, node) { $transformers[ident].(ident, args, nil) }
+        trace_expand(ident, node) { $transformers[ident].([ident, *args]) }
       in [:block, [:send, nil, ident, *args], _, body] if $transformers.keys.include?(ident)
-        trace_expand(ident, node) { $transformers[ident].(ident, args, body) }
+        trace_expand(ident, node) { $transformers[ident].([ident, *args, body]) }
       in Parser::AST::Node[type, *children]
         Parser::AST::Node.new(type, children.map { |c| expand(c) }, location: node.location)
       else

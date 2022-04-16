@@ -114,7 +114,7 @@ RSpec.describe Rds do
       Parser::AST::Node.new(:arg, [:x])
     ]
     s = _q do
-      proc { |w, _us: sargs| _u(lvar(:w)) + _u(lvar(:x)) + _u(lvar(:y)) + _u(lvar(:z)) }
+      proc { |w, _us: sargs| w + _u(lvar(:x)) + _u(lvar(:y)) + _u(lvar(:z)) }
     end
     expect(ast_text(s)).to eql "proc { |w, x, y = 1, z:| w + x + y + z }"
   end
