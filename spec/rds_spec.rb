@@ -40,7 +40,7 @@ RSpec.describe Rds do
 
     inner = Asts.eval(syntax { block_ast(   proc   {
       a +
-          b
+        b
     }, full: true) })
     expect(ast_file(inner)).to eql __FILE__
     expect(ast_begin_line(inner)).to eql __LINE__ - 5
@@ -106,6 +106,17 @@ RSpec.describe Rds do
       proc { |unsyntax: a, _u2: b| _u(lvar(:x)) + _u(lvar(:y)) + 1 }
     end
     expect(ast_text(s)).to eql "proc { |x, y:| x + y + 1 }"
+  end
+  it "unsyntax_splicing in block arguments" do
+    sargs = [
+      Parser::AST::Node.new(:kwarg, [:z]),
+      Parser::AST::Node.new(:optarg, [:y, Parser::AST::Node.new(:int, [1])]),
+      Parser::AST::Node.new(:arg, [:x])
+    ]
+    s = _q do
+      proc { |w, _us: sargs| _u(lvar(:w)) + _u(lvar(:x)) + _u(lvar(:y)) + _u(lvar(:z)) }
+    end
+    expect(ast_text(s)).to eql "proc { |w, x, y = 1, z:| w + x + y + z }"
   end
 
   def lvar(name)
