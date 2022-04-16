@@ -118,52 +118,39 @@ end
 
 def do_unsyntax(x, b, hint=x, depth=0)
   return x unless x.is_a?(Parser::AST::Node)
-  if depth == 0
-    case x
-    in [:send, nil, :unsyntax | :_u, expr]
-      [datum_to_syntax(Asts.eval(expr, b), hint)]
-    in [:block, [:send, nil, :unsyntax | :_u], [:args], expr]
-      [datum_to_syntax(Asts.eval(expr, b), hint)]
-    in [:send, nil, :unsyntax_splicing | :_us, expr]
-      datum_to_syntax(Asts.eval(expr, b), hint)
-    in [:block, [:send, nil, :unsyntax_splicing | :_us], [:args], expr]
-      datum_to_syntax(Asts.eval(expr, b), hint)
-    in [:hash_pattern, [:pair, [:sym, :unsyntax], [:pin, expr]]]
-      [datum_to_syntax(Asts.eval(expr, b), hint)]
-    in [:when, [:send, nil, :case_unsyntax_splicing, expr], nil]
-      datum_to_syntax(Asts.eval(expr, b), hint)
-    in [:kwoptarg, name, expr] if name.match(/^(unsyntax_splicing|_us)/)
-      reorder_args(datum_to_syntax(Asts.eval(expr, b), hint))
-    in [:kwoptarg, name, expr] if name.match(/^(unsyntax|_u)/)
-      [datum_to_syntax(Asts.eval(expr, b), hint)]
-    in [:block, [:send, nil, :quasisyntax | :_q], *_]
-      [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth + 1) }]
-    else
-      [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth) }]
-    end
+
+  go = lambda do |expr, level, eval: true, splice: false|
+    result =
+      if depth == 0 && eval
+        datum_to_syntax(Asts.eval(expr, b), hint)
+      else
+        flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth + level) }
+      end
+    splice ? result : [result]
+  end
+
+  case x
+  in [:send, nil, :unsyntax | :_u, expr]
+    go.(expr, -1)
+  in [:block, [:send, nil, :unsyntax | :_u], [:args], expr]
+    go.(expr, -1)
+  in [:send, nil, :unsyntax_splicing | :_us, expr]
+    go.(expr, -1, splice: true)
+  in [:block, [:send, nil, :unsyntax_splicing | :_us], [:args], expr]
+    go.(expr, -1, splice: true)
+  in [:hash_pattern, [:pair, [:sym, :unsyntax], [:pin, expr]]]
+    go.(expr, -1)
+  in [:when, [:send, nil, :case_unsyntax_splicing, expr], nil]
+    go.(expr, -1, splice: true)
+  in [:kwoptarg, name, expr] if name.match(/^(unsyntax_splicing|_us)/)
+    r = go.(expr, -1, splice: true)
+    depth == 0 ? reorder_args(r) : r
+  in [:kwoptarg, name, expr] if name.match(/^(unsyntax|_u)/)
+    go.(expr, -1, splice: true)
+  in [:block, [:send, nil, :quasisyntax | :_q], *_]
+    go.(expr, 1, eval: false)
   else
-    case x
-    in [:send, nil, :unsyntax | :_u, *_]
-      [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth - 1) }]
-    in [:block, [:send, nil, :unsyntax | :_u], *_]
-      [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth - 1) }]
-    in [:send, nil, :unsyntax_splicing | :_us, *_]
-      [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth - 1) }]
-    in [:block, [:send, nil, :unsyntax_splicing | :_us], *_]
-      [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth - 1) }]
-    in [:hash_pattern, [:pair, [:sym, :unsyntax], [:pin, _]]]
-      [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth - 1) }]
-    in [:when, [:send, nil, :case_unsyntax_splicing, _], nil]
-      [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth - 1) }]
-    in [:kwoptarg, name, _] if name.match(/^(unsyntax_splicing|_us)/)
-      [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth - 1) }]
-    in [:kwoptarg, name, _] if name.match(/^(unsyntax|_u)/)
-      [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth - 1) }]
-    in [:block, [:send, nil, :quasisyntax | :_q], *_]
-      [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth + 1) }]
-    else
-      [flat_map_children(x) { |c| do_unsyntax(c, b, hint, depth) }]
-    end
+    go.(expr, 0, eval: false)
   end
 end
 

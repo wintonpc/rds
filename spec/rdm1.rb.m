@@ -64,14 +64,14 @@ defmacro(:or2,
     end
   end)
 
-defmacro(:let2,
-  syntax_rules do
-    case
-    when [{v => e} ..., body]
-      (lambda { |v=(v...)| body }).(e ...)
-    end
-  end
-)
+# defmacro(:let2,
+#   syntax_rules do
+#     case
+#     when [{v => e} ..., body]
+#       (lambda { |v=(v...)| body }).(e ...)
+#     end
+#   end
+# )
 
 def test_or2
   or2(false, 2, 3 + raise("oops"))
