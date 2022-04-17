@@ -141,6 +141,16 @@ RSpec.describe Rds do
     end
     expect(ast_text(s)).to eql "proc { |w, x, y = 1, z:| w + x + y + z }"
   end
+  it "unsyntax local assignment" do
+    var = _s { a }
+    b = _s { 1 }
+    s = _q { _u(var)._= _u(b) }
+    expect(ast_text(s)).to eql "a = 1"
+
+    # raw lhs
+    s = _q { _u(:a)._= _u(b) }
+    expect(ast_text(s)).to eql "a = 1"
+  end
   it "delete me" do
     s = _s do
       case

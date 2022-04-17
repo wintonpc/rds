@@ -127,7 +127,7 @@ module Kernel
       inp = outp
     end
   ensure
-    # temps.each { |t| File.delete(t) }
+    temps.each { |t| File.delete(t) }
   end
 
   def ensure_gitignore_entry(rel_path, rb_path)

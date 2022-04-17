@@ -1,4 +1,3 @@
-require "rds/syntax_helpers"
 using SyntaxHelpers
 
 defmacro(:syntax_rules) do |stx|
@@ -42,11 +41,10 @@ def transform_pattern(x, pvars, gvars, fixups)
     pvars[v] = 1
     kws = gensym(gvars, :kws)
     pairs = gensym(gvars, :pairs)
-    spairs = n(:lvar, pairs)
-    # TODO: lvasgn
-    fixups << n(:lvasgn, pairs, _q { _u(n(:lvar, kws)).select { |x| x.type == :kwargs }.flat_map(&:children).map(&:children) })
-    fixups << n(:lvasgn, k, _q { _u(spairs).map { |x| x[0] } })
-    fixups << n(:lvasgn, v, _q { _u(spairs).map { |x| x[1] } })
+    spairs = lvar(pairs)
+    fixups << _q { _u(pairs)._= _u(lvar(kws)).select { |x| x.type == :kwargs }.flat_map(&:children).map(&:children) }
+    fixups << _q { _u(k)._= _u(spairs).map { |x| x[0] } }
+    fixups << _q { _u(v)._= _u(spairs).map { |x| x[1] } }
     n(:match_rest, n(:match_var, kws))
   in Parser::AST::Node
     n(x.type, *x.children.map { |c| transform_pattern(c, pvars, gvars, fixups) })

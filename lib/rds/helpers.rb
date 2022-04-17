@@ -30,3 +30,16 @@ end
 def ast_end_char(ast)
   ast.location.expression.end_pos
 end
+
+module SyntaxHelpers
+  refine Object do
+    private
+    def n(type, *children)
+      Parser::AST::Node.new(type, children)
+    end
+
+    def lvar(name)
+      n(:lvar, name)
+    end
+  end
+end

@@ -17,6 +17,8 @@ Parser::Builders::Default.emit_forward_arg         = true
 Parser::Builders::Default.emit_kwargs              = true
 Parser::Builders::Default.emit_match_pattern       = true
 
+using SyntaxHelpers
+
 class Asts
   @asts_by_path = {}
   @location_map = {}
@@ -119,6 +121,17 @@ def do_unsyntax(x, b, hint=x, depth=0)
     go.(expr, -1)
   in [:block, [:send, nil, :unsyntax | :_u], [:args], expr]
     go.(expr, -1)
+  in [:send, [:send, nil, :unsyntax | :_u, expr], :_=, rhs]
+    var = case go.(expr, -1, splice: true)
+    in [:send, nil, x] then x
+    in [:lvar, x] then x
+    in [:sym, x] then x
+    end
+    rhs = case do_unsyntax(rhs, b, hint, depth)
+    in [e] then e
+    in [*es] then n(:begin, *es)
+    end
+    [n(:lvasgn, var, rhs)]
   in [:send, nil, :unsyntax_splicing | :_us, expr]
     go.(expr, -1, splice: true)
   in [:block, [:send, nil, :unsyntax_splicing | :_us], [:args], expr]
@@ -134,6 +147,8 @@ def do_unsyntax(x, b, hint=x, depth=0)
     go.(expr, -1, splice: true)
   in [:block, [:send, nil, :quasisyntax | :_q], *_]
     go.(expr, 1, eval: false)
+  in [:send, [:send, nil, var], :_=, expr]
+    do_unsyntax(Parser::AST::Node.new(:lvasgn, var, expr), b, hint, depth)
   else
     go.(expr, 0, eval: false)
   end
