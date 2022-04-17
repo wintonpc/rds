@@ -10,9 +10,11 @@ defmacro(:syntax_rules) do |stx|
       when case_unsyntax_splicing(cases.map do |c|
         c => [:when, cpat, cbody]
         pvars = {}
-        pat = transform_pattern(cpat, pvars)
-        body = transform_expression(cbody, pvars, {})
-        n(:in_pattern, pat, nil, qwrap(body))
+        gvars = {}
+        fixups = []
+        pat = transform_pattern(cpat, pvars, gvars, fixups)
+        body = transform_expression(cbody, pvars, gvars)
+        n(:in_pattern, pat, nil, n(:begin, *fixups, qwrap(body)))
       end)
       end
     end
@@ -23,30 +25,42 @@ def qwrap(x)
   n(:block, n(:send, nil, :quasisyntax), n(:args), x)
 end
 
-def transform_pattern(x, pvars)
+def transform_pattern(x, pvars, gvars, fixups)
   case x
   in [:array]
     n(:array_pattern)
   in [:array, *pats]
-    n(:array_pattern, *pats.map { |p| transform_pattern(p, pvars) })
+    n(:array_pattern, *pats.map { |p| transform_pattern(p, pvars, gvars, fixups) })
   in [:send, nil, var]
-    pvars[var] = :single
+    pvars[var] = 0
     n(:match_var, var)
   in [:erange, [:send, nil, var], nil]
-    pvars[var] = :splat
+    pvars[var] = 1
     n(:match_rest, n(:match_var, var))
+  in [:erange, [:hash, [:pair, [:send, nil, k], [:send, nil, v]]], nil]
+    pvars[k] = 1
+    pvars[v] = 1
+    kws = gensym(gvars, :kws)
+    pairs = gensym(gvars, :pairs)
+    spairs = n(:lvar, pairs)
+    # TODO: lvasgn
+    fixups << n(:lvasgn, pairs, _q { _u(n(:lvar, kws)).select { |x| x.type == :kwargs }.flat_map(&:children).map(&:children) })
+    fixups << n(:lvasgn, k, _q { _u(spairs).map { |x| x[0] } })
+    fixups << n(:lvasgn, v, _q { _u(spairs).map { |x| x[1] } })
+    n(:match_rest, n(:match_var, kws))
   in Parser::AST::Node
-    n(x.type, *x.children.map { |c| transform_pattern(c, pvars) })
+    n(x.type, *x.children.map { |c| transform_pattern(c, pvars, gvars, fixups) })
   else
     x
   end
 end
 
 def transform_expression(x, pvars, gvars)
+  x.to_s
   case x
-  in [:erange, [:send, nil, id] => svar, nil] if pvars[id] == :splat
+  in [:erange, [:send, nil, id] => svar, nil] if pvars[id] == 1
     n(:send, nil, :unsyntax_splicing, svar)
-  in [:send, nil, id] => svar if pvars[id] == :single
+  in [:send, nil, id] => svar if pvars[id] == 0
     n(:send, nil, :unsyntax, svar)
   in [:lvar, ident]
     ident = gvars.fetch(ident) { gensym(gvars, ident) }
@@ -68,8 +82,7 @@ def gensym(gvars, ident)
     if gvars.keys.include?(name)
       c += 1
     else
-      gvars[ident] = name
-      return name
+      return gvars[ident] = name.to_sym
     end
   end
 end
