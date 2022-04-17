@@ -64,25 +64,14 @@ require_relative_expand "syntax_rules"
 #     end
 #   end)
 
-defmacro(:kvflatten,
-  syntax_rules do
-    case
-    when [x, {v => e} ...]
-      [v ..., e ..., x]
-    end
-  end
-)
-
-# defmacro(:kvflatten) do |(_, *args)|
-#   case args
-#   in [x, *erange]
-#     v = erange.select { |x| x.type == :kwargs }.flat_map(&:children).map { |x| x.children[0] }
-#     e = erange.select { |x| x.type == :kwargs }.flat_map(&:children).map { |x| x.children[1] }
-#     quasisyntax do
-#       [unsyntax_splicing(v), unsyntax_splicing(e), unsyntax(x)]
+# defmacro(:kvflatten,
+#   syntax_rules do
+#     case
+#     when [x, {v => e} ...]
+#       [v ..., e ..., x]
 #     end
 #   end
-# end
+# )
 
 # defmacro(:let2,
 #   syntax_rules do
@@ -93,6 +82,18 @@ defmacro(:kvflatten,
 #   end
 # )
 
+defmacro(:let2, proc do |stx|
+  case stx
+  in [_, *kws_1, body] then
+    pairs_1 = kws_1.select { |x| x.type == :kwargs }.flat_map(&:children).map(&:children)
+    v = pairs_1.map { |x| x[0] }
+    e = pairs_1.map { |x| x[1] }
+    quasisyntax do
+      (lambda { |a, b| _u(body) }).(_us(e))
+    end
+  end
+end)
+
 def rdm_test_cases
   proc do
     # it "defproto" do
@@ -102,9 +103,15 @@ def rdm_test_cases
     #   x = or2(false, 2, 3 + raise("oops"))
     #   expect(x).to eql 2
     # end
-    it "kvflatten" do
-      x = kvflatten(3, a: 1, b: 2)
-      expect(x).to eql [:a, :b, 1, 2, 3]
+    # it "kvflatten" do
+    #   x = kvflatten(3, a: 1, b: 2)
+    #   expect(x).to eql [:a, :b, 1, 2, 3]
+    # end
+    it "let2" do
+      x = let2(a: 1, b: 2) do
+        [a + 1, b + 1]
+      end
+      expect(x).to eql [2, 3]
     end
   end
 end

@@ -65,7 +65,7 @@ class Rdm
     end
 
     def do_unparse(n)
-      Unparser.unparse(n)
+      unparse(n)
     rescue Exception =>  e
       puts e
       debug_unparse(n)
@@ -77,7 +77,7 @@ class Rdm
       puts "debug_unparse #{n}" if $debug_rdm
       n.children.each do |c|
         begin
-          Unparser.unparse(c)
+          unparse(c)
         rescue Exception => e
           debug_unparse(c)
         end

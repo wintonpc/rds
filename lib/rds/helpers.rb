@@ -8,6 +8,9 @@ def ast_text(node, pretty: false)
 end
 
 def ast_file(node)
+  if !node.location
+    raise "Node has no location: #{node}"
+  end
   node.location.expression.source_buffer.name
 end
 

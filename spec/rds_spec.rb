@@ -81,27 +81,67 @@ RSpec.describe Rds do
     expect(ast_text(s)).to eql "_q { _u(1.m) }"
   end
   it "nests quasisyntax" do
-    four = 4
-    s = quasisyntax do
-      [1,
-        unsyntax do
-          quasisyntax do
-            [2,
-              unsyntax do
-                quasisyntax do
-                  [3,
-                    unsyntax do
-                      four
-                    end
-                  ]
-                end
-              end
-            ]
-          end
+    # four = 4
+    # s = quasisyntax do
+    #   [1,
+    #     unsyntax do
+    #       quasisyntax do
+    #         [2,
+    #           unsyntax do
+    #             quasisyntax do
+    #               [3,
+    #                 unsyntax do
+    #                   four
+    #                 end
+    #               ]
+    #             end
+    #           end
+    #         ]
+    #       end
+    #     end
+    #   ]
+    # end
+    # expect(ast_text(s)).to eql "[1, [2, [3, 4]]]"
+
+    a = syntax { 2 }
+    s = _q { _q { _u(_u(a)) } }
+    expect(ast_text(s)).to eql "_q { _u(2) }"
+
+    a = syntax { 1 }
+    s =
+      _q do
+        b = syntax { 2 }
+        _q do
+          c = syntax { 3 }
+          _q { _u(_u(_u(a))) + _u(_u(b)) + _u(c) }
         end
-      ]
-    end
-    expect(ast_text(s)).to eql "[1, [2, [3, 4]]]"
+      end
+    expect(Unparser.unparse(s)).to eql <<~CODE
+      b = syntax {
+        2
+      }
+      _q {
+        c = syntax {
+          3
+        }
+        _q {
+          _u(_u(1)) + _u(_u(b)) + _u(c)
+        }
+      }
+    CODE
+    s = Asts.eval(s)
+    expect(Unparser.unparse(s)).to eql <<~CODE
+      c = syntax {
+        3
+      }
+      _q {
+        _u(1) + _u(2) + _u(c)
+      }
+    CODE
+    # TODO: fix
+    # s = Asts.eval(s)
+    # expect(Unparser.unparse(s)).to eql "1 + 2 + 3"
+
   end
   it "unsyntax in ruby pattern" do
     pat = syntax { x in [a] }.children[1]
@@ -150,15 +190,6 @@ RSpec.describe Rds do
     # raw lhs
     s = _q { _u(:a)._= _u(b) }
     expect(ast_text(s)).to eql "a = 1"
-  end
-  it "delete me" do
-    s = _s do
-      case
-      when [{v => e} ...]
-        [v ..., e ...]
-      end
-    end
-    puts s
   end
 
   def lvar(name)

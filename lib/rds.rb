@@ -39,7 +39,12 @@ class Asts
     def eval(ast, binding=nil)
       binding ||= self.binding.of_caller(1)
       ast2, code = map(ast)
-      Kernel.eval(code, binding, ast_file(ast2))
+      begin
+        Kernel.eval(code, binding, ast_file(ast2))
+      rescue NameError
+        puts ast
+        raise
+      end
     end
 
     private
@@ -54,7 +59,7 @@ class Asts
       # need object_id because AST::Node#hash is a function of content and excludes location
       @mapped.fetch(ast.object_id) do
         @mapped[ast] = begin
-          code = Unparser.unparse(ast)
+          code = unparse(ast)
           ast2 = Parser::CurrentRuby.parse(code, "ast##{ast.object_id}")
           do_map(ast, ast2)
           [ast2, code]
@@ -80,6 +85,20 @@ class Asts
         ast.children.lazy.map { |c| find_block(c, beg_line, beg_col) }.reject(&:nil?).first
       end
     end
+  end
+end
+
+def unparse(ast)
+  Unparser.unparse(fix_for_unparse(ast))
+end
+
+def fix_for_unparse(x)
+  return x unless x.is_a?(Parser::AST::Node)
+  case x
+  in [:send, nil, name] if !name.match(/(=|\?|!)$/)
+    n(:lvar, name)
+  else
+    Parser::AST::Node.new(x.type, x.children.map { |c| fix_for_unparse(c) }, location: x.location)
   end
 end
 
@@ -129,9 +148,9 @@ def do_unsyntax(x, b, hint=x, depth=0)
     end
     rhs = case do_unsyntax(rhs, b, hint, depth)
     in [e] then e
-    in [*es] then n(:begin, *es)
+    in [*es] then Parser::AST::Node.new(:begin, es, location: rhs.location)
     end
-    [n(:lvasgn, var, rhs)]
+    [Parser::AST::Node.new(:lvasgn, [var, rhs], location: hint.location)]
   in [:send, nil, :unsyntax_splicing | :_us, expr]
     go.(expr, -1, splice: true)
   in [:block, [:send, nil, :unsyntax_splicing | :_us], [:args], expr]
@@ -145,8 +164,13 @@ def do_unsyntax(x, b, hint=x, depth=0)
     depth == 0 ? reorder_args(r) : r
   in [:kwoptarg, name, expr] if name.match(/^(unsyntax|_u)/)
     go.(expr, -1, splice: true)
-  in [:block, [:send, nil, :quasisyntax | :_q], *_]
-    go.(expr, 1, eval: false)
+  in [:block, [:send, nil, :quasisyntax | :_q => q] => sendq, [:args] => a, expr]
+    expr2 = do_unsyntax(expr, b, hint, depth + 1)[0]
+    [Parser::AST::Node.new(:block,
+      [Parser::AST::Node.new(:send, [nil, q], location: sendq.location),
+        Parser::AST::Node.new(:args, [], location: a.location),
+        expr2],
+      location: x.location)]
   in [:send, [:send, nil, var], :_=, expr]
     do_unsyntax(Parser::AST::Node.new(:lvasgn, var, expr), b, hint, depth)
   else
@@ -186,8 +210,13 @@ def syntax_to_datum(stx)
   stx.children[0]
 end
 
+def unsyntax(x)
+  block_given? ? yield : x
+end
+
 alias _s syntax
 alias _q quasisyntax
+alias _u unsyntax
 
 def define_syntax(name, &transform)
   define_method(name) do |*_, &block|
