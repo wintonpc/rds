@@ -1,3 +1,6 @@
+require "rds/syntax_helpers"
+using SyntaxHelpers
+
 defmacro(:syntax_rules) do |stx|
   body = stx.last
   body => [:case, _, *cases, else_case]
@@ -9,7 +12,7 @@ defmacro(:syntax_rules) do |stx|
         pvars = {}
         pat = transform_pattern(cpat, pvars)
         body = transform_expression(cbody, pvars, {})
-        Parser::AST::Node.new(:in_pattern, [pat, nil, qwrap(body)])
+        n(:in_pattern, pat, nil, qwrap(body))
       end)
       end
     end
@@ -17,46 +20,42 @@ defmacro(:syntax_rules) do |stx|
 end
 
 def qwrap(x)
-  Parser::AST::Node.new(:block, [
-    Parser::AST::Node.new(:send, [nil, :quasisyntax]),
-    Parser::AST::Node.new(:args, []), x
-  ])
+  n(:block, n(:send, nil, :quasisyntax), n(:args), x)
 end
 
 def transform_pattern(x, pvars)
   case x
   in [:array]
-    Parser::AST::Node.new(:array_pattern)
+    n(:array_pattern)
   in [:array, *pats]
-    Parser::AST::Node.new(:array_pattern, pats.map { |p| transform_pattern(p, pvars) })
+    n(:array_pattern, *pats.map { |p| transform_pattern(p, pvars) })
   in [:send, nil, var]
     pvars[var] = :single
-    Parser::AST::Node.new(:match_var, [var])
+    n(:match_var, var)
   in [:erange, [:send, nil, var], nil]
     pvars[var] = :splat
-    Parser::AST::Node.new(:match_rest, [Parser::AST::Node.new(:match_var, [var])])
+    n(:match_rest, n(:match_var, var))
   in Parser::AST::Node
-    Parser::AST::Node.new(x.type, x.children.map { |c| transform_pattern(c, pvars) }, location: x.location)
+    n(x.type, *x.children.map { |c| transform_pattern(c, pvars) })
   else
     x
   end
 end
 
 def transform_expression(x, pvars, gvars)
-  x.to_s
   case x
   in [:erange, [:send, nil, id] => svar, nil] if pvars[id] == :splat
-    Parser::AST::Node.new(:send, [nil, :unsyntax_splicing, svar])
+    n(:send, nil, :unsyntax_splicing, svar)
   in [:send, nil, id] => svar if pvars[id] == :single
-    Parser::AST::Node.new(:send, [nil, :unsyntax, svar])
+    n(:send, nil, :unsyntax, svar)
   in [:lvar, ident]
     ident = gvars.fetch(ident) { gensym(gvars, ident) }
-    Parser::AST::Node.new(:lvar, [ident])
+    n(:lvar, ident)
   in [:lvasgn, ident, expr]
     ident = gvars.fetch(ident) { gensym(gvars, ident) }
-    Parser::AST::Node.new(:lvasgn, [ident, transform_expression(expr, pvars, gvars)])
+    n(:lvasgn, ident, transform_expression(expr, pvars, gvars))
   in Parser::AST::Node
-    Parser::AST::Node.new(x.type, x.children.map { |c| transform_expression(c, pvars, gvars) }, location: x.location)
+    n(x.type, *x.children.map { |c| transform_expression(c, pvars, gvars) })
   else
     x
   end
