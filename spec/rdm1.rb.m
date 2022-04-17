@@ -49,20 +49,20 @@ require_relative_expand "syntax_rules"
 #   cal
 # end
 
-# defmacro(:or2,
-#   syntax_rules do
-#     case
-#     when []
-#       false
-#     when [e1, e2 ...]
-#       t = e1
-#       if t
-#         t
-#       else
-#         or2(e2 ...)
-#       end
-#     end
-#   end)
+defmacro(:or2,
+  syntax_rules do
+    case
+    when []
+      false
+    when [e1, e2 ...]
+      t = e1
+      if t
+        t
+      else
+        or2(e2 ...)
+      end
+    end
+  end)
 
 # defmacro(:kvflatten,
 #   syntax_rules do

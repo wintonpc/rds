@@ -49,10 +49,10 @@ class Asts
     end
 
     def map(ast)
-      code = Unparser.unparse(ast)
       # need object_id because AST::Node#hash is a function of content and excludes location
       @mapped.fetch(ast.object_id) do
         @mapped[ast] = begin
+          code = Unparser.unparse(ast)
           ast2 = Parser::CurrentRuby.parse(code, "ast##{ast.object_id}")
           do_map(ast, ast2)
           [ast2, code]
@@ -98,22 +98,7 @@ def syntax(&block)
 end
 
 def quasisyntax(&block)
-  do_unsyntax(remove_special_constructs(block_ast(block)), block.binding)[0]
-end
-
-def remove_special_constructs(x)
-  case x
-  in [:send, nil, :_case, subject, *cases]
-    real_cases = cases.map do |c|
-      c => [:block, [:send, nil, :_, [:begin, [:match_pattern_p, _, pat]]], _, expr]
-      Parser::AST::Node.new(:in_pattern, [pat, nil, remove_special_constructs(expr)], location: c.location)
-    end
-    Parser::AST::Node.new(:case_match, [subject, *real_cases, nil], location: x.location)
-  in [type, *children]
-    Parser::AST::Node.new(type, children.map { |c| remove_special_constructs(c) }, location: x.location)
-  else
-    x
-  end
+  do_unsyntax(block_ast(block), block.binding)[0]
 end
 
 def do_unsyntax(x, b, hint=x, depth=0)

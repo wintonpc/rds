@@ -80,6 +80,29 @@ RSpec.describe Rds do
     s = _q { _q { _u(_u(a).m) } }
     expect(ast_text(s)).to eql "_q { _u(1.m) }"
   end
+  it "nests quasisyntax" do
+    four = 4
+    s = quasisyntax do
+      [1,
+        unsyntax do
+          quasisyntax do
+            [2,
+              unsyntax do
+                quasisyntax do
+                  [3,
+                    unsyntax do
+                      four
+                    end
+                  ]
+                end
+              end
+            ]
+          end
+        end
+      ]
+    end
+    expect(ast_text(s)).to eql "[1, [2, [3, 4]]]"
+  end
   it "unsyntax in ruby pattern" do
     pat = syntax { x in [a] }.children[1]
     s = _q do
