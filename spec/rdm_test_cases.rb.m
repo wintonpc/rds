@@ -1,4 +1,5 @@
 require_relative_expand "syntax_rules"
+using SyntaxHelpers
 
 # defmacro(:defproto) do |(_, *args)|
 #   type, *fields = args
@@ -77,7 +78,7 @@ require_relative_expand "syntax_rules"
 #   syntax_rules do
 #     case
 #     when [{v => e} ..., body]
-#       (lambda { |v=(v...)| body }).(e ...)
+#       (lambda { |_=(v...)| body }).(e ...)
 #     end
 #   end
 # )
@@ -89,7 +90,7 @@ defmacro(:let2, proc do |stx|
     v = pairs_1.map { |x| x[0] }
     e = pairs_1.map { |x| x[1] }
     quasisyntax do
-      (lambda { |a, b| _u(body) }).(_us(e))
+      (lambda { |_=unsyntax_splicing(v.map { |x| as_arg(x) })| _u(body) }).(_us(e))
     end
   end
 end)

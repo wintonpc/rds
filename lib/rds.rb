@@ -153,6 +153,8 @@ def do_unsyntax(x, b, hint=x, depth=0)
     [Parser::AST::Node.new(:lvasgn, [var, rhs], location: hint.location)]
   in [:send, nil, :unsyntax_splicing | :_us, expr]
     go.(expr, -1, splice: true)
+  in [:optarg, _, [:send, nil, :unsyntax_splicing | :_us, expr]]
+    go.(expr, -1, splice: true)
   in [:block, [:send, nil, :unsyntax_splicing | :_us], [:args], expr]
     go.(expr, -1, splice: true)
   in [:hash_pattern, [:pair, [:sym, :unsyntax], [:pin, expr]]]

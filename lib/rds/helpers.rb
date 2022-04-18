@@ -44,5 +44,14 @@ module SyntaxHelpers
     def lvar(name)
       n(:lvar, name)
     end
+
+    def as_arg(x)
+      case x
+      in Symbol
+        n(:arg, x)
+      in [:sym, name]
+        n(:arg, name)
+      end
+    end
   end
 end
