@@ -66,6 +66,8 @@ def transform_expression(x, pvars, gvars)
   in [:lvasgn, ident, expr]
     ident = gvars.fetch(ident) { gensym(gvars, ident) }
     n(:lvasgn, ident, transform_expression(expr, pvars, gvars))
+  in [:optarg, dummy, [:begin, [:erange, [:send, nil, id] => svar, nil]]] if pvars[id] == 1
+    n(:optarg, dummy, n(:send, nil, :_us, _q { _u(svar).map { |x| SyntaxRules.as_arg(x) } }))
   in Parser::AST::Node
     n(x.type, *x.children.map { |c| transform_expression(c, pvars, gvars) })
   else
@@ -81,6 +83,19 @@ def gensym(gvars, ident)
       c += 1
     else
       return gvars[ident] = name.to_sym
+    end
+  end
+end
+
+class SyntaxRules
+  class << self
+    def as_arg(x)
+      case x
+      in Symbol
+        n(:arg, x)
+      in [:sym, name]
+        n(:arg, name)
+      end
     end
   end
 end
