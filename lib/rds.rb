@@ -27,54 +27,80 @@ class Asts
 
   class << self
     def for_block(file, line, column)
-      if file.start_with?("ast#")
-        for_block(*@location_map[[file, line, column]])
-      else
-        ast = get(file)
-        key = [ast.object_id, line, column]
-        @found.fetch(key) { @found[key] = find_block(ast, line, column) }
-      end
+      ast = get(file)
+      key = [ast.object_id, line, column]
+      @found.get_or_add(key) { find_block(ast, line, column) }
     end
 
     def eval(ast, binding=nil)
       binding ||= self.binding.of_caller(1)
       ast2, code = map(ast)
-      begin
-        Kernel.eval(code, binding, ast_file(ast2))
-      rescue NameError
-        puts ast
-        raise
-      end
+      @asts_by_path[ast_file(ast2)] = ast2
+      Kernel.eval(code, binding, ast_file(ast2))
+    end
+
+    # Find the corresponding node in the AST that node was sourced from, through Asts.eval. See loc_spec.rb
+    def parent(node)
+      ast_file(node).start_with?("ast#") or return nil
+      key = loc_key(node) or return nil
+      mapped = @location_map[key] or return nil
+      file, line, column = mapped
+
+      full = get(file)
+      possibles = find_possible_parents(full, line, column)
+      possibles.first
+    end
+
+    def find_possible_parents(ast, beg_line, beg_col)
+      # TODO: nodes can share the same offset. disambiguate by node type or by end line+col
+      return [] unless ast.is_a?(Parser::AST::Node)
+      key = loc_key(ast)
+      this_one = (key && key[1] == beg_line && key[2] == beg_col) ? [ast] : []
+      this_one + ast.children.flat_map { |c| find_possible_parents(c, beg_line, beg_col) }.reject(&:nil?)
     end
 
     private
 
     def get(path)
-      @asts_by_path.fetch(path) do
-        @asts_by_path[path] = Parser::CurrentRuby.parse(File.read(path), path)
-      end
+      @asts_by_path.get_or_add(path) { Parser::CurrentRuby.parse(File.read(path), path) }
     end
 
     def map(ast)
       # need object_id because AST::Node#hash is a function of content and excludes location
-      @mapped.fetch(ast.object_id) do
-        @mapped[ast] = begin
-          code = unparse(ast)
-          ast2 = Parser::CurrentRuby.parse(code, "ast##{ast.object_id}")
-          do_map(ast, ast2)
-          [ast2, code]
-        end
+      @mapped.get_or_add(ast.object_id) do
+        code = unparse(ast)
+        ast2 = Parser::CurrentRuby.parse(code, "ast##{ast.object_id}")
+        do_map(ast, ast2)
+        [ast2, code]
       end
     end
 
     def do_map(a, b)
       return unless a.is_a?(Parser::AST::Node)
-      if a.type == :block
-        # use b.location.begin.column rather than ast_begin_column because it matches what Proc#source_region returns
-        @location_map[[ast_file(b), ast_begin_line(b), b.location.begin.column]] =
-          [ast_file(a), ast_begin_line(a), a.location.begin.column]
+      k = loc_key(b)
+      v = loc_key(a)
+      if k && v
+        existing = @location_map[k]
+        if existing && existing != v
+          raise "Tried to remap #{k} from #{existing} to #{v}"
+        end
+        @location_map[k] = v
       end
       a.children.zip(b.children, &method(:do_map))
+    end
+
+    def loc_key(n)
+      # It is important to use b.location.begin.column for block nodes because it matches what
+      # Proc#source_region returns. It's ok to use ast_begin_column for other nodes that may not have
+      # b.location.begin.column because they are not correlated to Proc#source_region but only used for mapping
+      # between ASTs.
+      if !n.location.expression
+        nil
+      elsif n.respond_to?(:begin) && n.location.begin
+        [ast_file(n), ast_begin_line(n), n.location.begin.column]
+      else
+        [ast_file(n), ast_begin_line(n), ast_begin_column(n)]
+      end
     end
 
     def find_block(ast, beg_line, beg_col)
@@ -96,6 +122,10 @@ def fix_for_unparse(x)
   return x unless x.is_a?(Parser::AST::Node)
   case x
   in [:send, nil, name] if !name.match(/(=|\?|!)$/)
+    # In ruby code, raw symbols can refer to either locals or methods. In macro transformations,
+    # these tend to come through as method calls since the parser doesn't see a local assignment.
+    # Unparser writes [:send, nil, :a] as "a()", which rules it out as a local, though the macro
+    # may use it as one. Make it an lvar so it unparses to "a", and ruby will sort it out during evaluation.
     n(:lvar, name)
   else
     Parser::AST::Node.new(x.type, x.children.map { |c| fix_for_unparse(c) }, location: x.location)

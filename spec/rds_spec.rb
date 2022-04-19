@@ -15,48 +15,6 @@ RSpec.describe Rds do
     b = Parser::CurrentRuby.parse(ast_text(a), ast_file(a))
     [a,b]
   end
-  it "eval_ast" do
-    x = 2
-    y = 3
-    expect(Asts.eval(syntax { x + y })).to eql 5
-
-    inner = Asts.eval(syntax { syntax { a + b } })
-    expect(ast_text(inner)).to eql "a + b"
-    expect(ast_file(inner)).to eql __FILE__
-    expect(ast_begin_line(inner)).to eql __LINE__ - 3
-    expect(ast_begin_column(inner)).to eql 40
-
-    inner = Asts.eval(syntax { Asts.eval(syntax { syntax { a + b } }) })
-    expect(ast_text(inner)).to eql "a + b"
-    expect(ast_file(inner)).to eql __FILE__
-    expect(ast_begin_line(inner)).to eql __LINE__ - 3
-    expect(ast_begin_column(inner)).to eql 59
-
-    inner = Asts.eval(syntax { block_ast(proc { a + b }, full: true) })
-    expect(ast_text(inner)).to eql "proc { a + b }"
-    expect(ast_file(inner)).to eql __FILE__
-    expect(ast_begin_line(inner)).to eql __LINE__ - 3
-    expect(ast_begin_column(inner)).to eql 41
-
-    inner = Asts.eval(syntax { block_ast(   proc   {
-      a +
-        b
-    }, full: true) })
-    expect(ast_file(inner)).to eql __FILE__
-    expect(ast_begin_line(inner)).to eql __LINE__ - 5
-    expect(ast_begin_column(inner)).to eql 44
-    expr = inner.children[2]
-    expect(ast_begin_line(expr)).to eql __LINE__ - 7
-    expect(ast_begin_column(expr)).to eql 6
-
-    get_an_ast = proc do
-      block_ast(proc { a + b })
-    end
-
-    inner1 = Asts.eval(block_ast(proc { get_an_ast.() }))
-    inner2 = Asts.eval(block_ast(proc { get_an_ast.() }))
-    expect(inner1).to be inner2
-  end
   it "syntax" do
     s = syntax { a + b }
     expect(s).to be_a AST::Node
@@ -138,9 +96,10 @@ RSpec.describe Rds do
         _u(1) + _u(2) + _u(c)
       }
     CODE
-    # TODO: fix
-    # s = Asts.eval(s)
-    # expect(Unparser.unparse(s)).to eql "1 + 2 + 3"
+    s = Asts.eval(s)
+    expect(Unparser.unparse(s)).to eql "1 + 2 + 3"
+    v = Asts.eval(s)
+    expect(v).to eql 6
   end
   it "unsyntax in ruby pattern" do
     pat = syntax { x in [a] }.children[1]

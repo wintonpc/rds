@@ -4,7 +4,7 @@ require "unparser"
 
 def ast_text(node, pretty: false)
   s = Unparser.unparse(node)
-  pretty ? s : s.gsub(/\s*\n\s*/, " ")
+  (pretty ? s : s.gsub(/\s*\n\s*/, " ")).strip
 end
 
 def ast_file(node)
@@ -34,6 +34,33 @@ def ast_end_char(ast)
   ast.location.expression.end_pos
 end
 
+# basename:line:column
+# line is 1-based, column is 0-based
+def nd(n)
+  append = proc do |text, n|
+    e = n.location.expression
+    text += " @ #{File.basename(e.source_buffer.name, ".rb")}:#{e.line}:#{e.column}"
+    parent = Asts.parent(n)
+    parent ? append.(text, parent) : text
+  end
+  append.("#{ast_text(n)}", n)
+end
+
+# Returns the root parent. This returns the concrete .rb file location, when available.
+def root_location(n)
+  e = n.location.expression
+  parent = Asts.parent(n)
+  if parent
+    root_location(parent)
+  else
+    if column
+      "#{e.source_buffer.name}:#{e.line}:#{e.column}"
+    else
+      "#{e.source_buffer.name}:#{e.line}"
+    end
+  end
+end
+
 module SyntaxHelpers
   refine Object do
     private
@@ -53,5 +80,11 @@ module SyntaxHelpers
         n(:arg, name)
       end
     end
+  end
+end
+
+class Hash
+  def get_or_add(key)
+    fetch(key) { |k| self[k] = yield(k) }
   end
 end
