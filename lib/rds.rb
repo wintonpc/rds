@@ -22,22 +22,31 @@ Parser::Builders::Default.emit_match_pattern       = true
 using SyntaxHelpers
 
 class Asts
-  @asts_by_path = {}
+  @files_by_path = {}
+  @blocks = {}
   @location_map = {}
   @mapped = {}
-  @found = {}
+  @dumped_asts = []
+  @debug = false
 
   class << self
     def for_block(file, line, column)
-      ast = get(file)
-      key = [ast.object_id, line, column]
-      @found.get_or_add(key) { find_block(ast, line, column) }
+      puts "for_block #{File.basename(file, ".rb")}:#{line}:#{column}" if @debug
+      file_ast = get(file)
+      key = [file_ast.object_id, line, column]
+      @blocks.get_or_add(key) do
+        ast = find_block(file_ast, line, column)
+        puts "[#{ast.object_id}] #{ast_text(ast)}" if @debug
+        ast
+      end
     end
 
     def eval(ast, binding=nil)
+      observe(ast)
+      puts "eval #{ast.object_id}" if @debug
       binding ||= self.binding.of_caller(1)
       ast2, code = map(ast)
-      @asts_by_path[ast_file(ast2)] = ast2
+      @files_by_path[ast_file(ast2)] = ast2
       Kernel.eval(code, binding, ast_file(ast2))
     end
 
@@ -54,19 +63,32 @@ class Asts
     end
 
     def find_possible_parents(ast, beg_line, beg_col)
-      # TODO: nodes can share the same offset. disambiguate by node type or by end line+col
       return [] unless ast.is_a?(Parser::AST::Node)
       key = loc_key(ast)
-      this_one = (key && key[1] == beg_line && key[2] == beg_col) ? [ast] : []
+      this_one = (key && key[1] == beg_line && key[2] == beg_col && key[3] == ast.type) ? [ast] : []
       this_one + ast.children.flat_map { |c| find_possible_parents(c, beg_line, beg_col) }.reject(&:nil?)
+    end
+
+    def observe(ast)
+      if @debug && !@dumped_asts.include?(ast.object_id)
+        @dumped_asts.push(ast.object_id)
+        puts "[#{ast.object_id}] #{ast_text(ast)}"
+      end
+      ast
+    end
+
+    def dump_location_map
+      @location_map.each do |(fa, la, ca), (fb, lb, cb)|
+        puts "#{File.basename(fa, ".rb")}:#{la}:#{ca} => #{File.basename(fb, ".rb")}:#{lb}:#{cb}"
+      end
     end
 
     private
 
     def get(path)
-      @asts_by_path.get_or_add(path) do
+      @files_by_path.get_or_add(path) do
         code = path.start_with?("irb\#") ? $irbs[path] : File.read(path)
-        Parser::CurrentRuby.parse(code, path)
+        parse(code, path)
       end
     end
 
@@ -74,7 +96,7 @@ class Asts
       # need object_id because AST::Node#hash is a function of content and excludes location
       @mapped.get_or_add(ast.object_id) do
         code = unparse(ast)
-        ast2 = Parser::CurrentRuby.parse(code, "ast##{ast.object_id}")
+        ast2 = parse(code, "ast##{ast.object_id}")
         do_map(ast, ast2)
         [ast2, code]
       end
@@ -84,12 +106,20 @@ class Asts
       return unless a.is_a?(Parser::AST::Node)
       k = loc_key(b)
       v = loc_key(a)
-      if k && v
+
+      if k && v && k != v
         existing = @location_map[k]
         if existing && existing != v
-          raise "Tried to remap #{k} from #{existing} to #{v}"
+          if existing.take(3) == v.take(3) && existing.last == :send && v.last == :lvar
+            puts "map #{k} => #{v} (remap send => lvar)" if @debug
+            @location_map[k] = v
+          else
+            puts "Would have mapped #{k} to #{v} but already mapped to #{existing}"
+          end
+        else
+          puts "map #{k} => #{v}" if @debug
+          @location_map[k] = v
         end
-        @location_map[k] = v
       end
       a.children.zip(b.children, &method(:do_map))
     end
@@ -102,9 +132,9 @@ class Asts
       if !n.location.expression
         nil
       elsif n.respond_to?(:begin) && n.location.begin
-        [ast_file(n), ast_begin_line(n), n.location.begin.column]
+        [ast_file(n), ast_begin_line(n), n.location.begin.column, n.type]
       else
-        [ast_file(n), ast_begin_line(n), ast_begin_column(n)]
+        [ast_file(n), ast_begin_line(n), ast_begin_column(n), n.type]
       end
     end
 
@@ -119,25 +149,15 @@ class Asts
   end
 end
 
+def parse(code, file)
+  Parser::CurrentRuby.parse(code, file)
+end
+
 def unparse(ast)
-  Unparser.unparse(fix_for_unparse(ast))
+  Unparser.unparse(ast)
 end
 
-def fix_for_unparse(x)
-  return x unless x.is_a?(Parser::AST::Node)
-  case x
-  in [:send, nil, name] if !name.match(/(=|\?|!)$/)
-    # In ruby code, raw symbols can refer to either locals or methods. In macro transformations,
-    # these tend to come through as method calls since the parser doesn't see a local assignment.
-    # Unparser writes [:send, nil, :a] as "a()", which rules it out as a local, though the macro
-    # may use it as one. Make it an lvar so it unparses to "a", and ruby will sort it out during evaluation.
-    n(:lvar, name)
-  else
-    Parser::AST::Node.new(x.type, x.children.map { |c| fix_for_unparse(c) }, location: x.location)
-  end
-end
-
-$irbs = {}
+$irbs = {} # TODO
 
 def block_ast(p, full: false)
   file, beg_line, beg_col = p.source_region
@@ -161,7 +181,7 @@ def syntax(&block)
 end
 
 def quasisyntax(&block)
-  do_unsyntax(block_ast(block), block.binding)[0]
+  Asts.observe(do_unsyntax(block_ast(block), block.binding)[0])
 end
 
 def do_unsyntax(x, b, hint=x, depth=0)

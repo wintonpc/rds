@@ -28,7 +28,7 @@ class Rdm
         puts "Expand-time load error: #{e}" if $debug_rdm
       end
 
-      e_in = Parser::CurrentRuby.parse(File.read(inp), inp)
+      e_in = parse(File.read(inp), inp)
       e_out = expand(e_in)
       File.write(outp, do_unparse(e_out))
     end

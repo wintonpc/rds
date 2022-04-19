@@ -12,7 +12,7 @@ RSpec.describe Rds do
     expect(ast_text(block_ast(proc { x + y }, full: true))).to eql "proc { x + y }"
 
     a = block_ast(proc { x + y }, full: true)
-    b = Parser::CurrentRuby.parse(ast_text(a), ast_file(a))
+    b = parse(ast_text(a), ast_file(a))
     [a,b]
   end
   it "syntax" do
@@ -74,7 +74,7 @@ RSpec.describe Rds do
           _q { _u(_u(_u(a))) + _u(_u(b)) + _u(c) }
         end
       end
-    expect(Unparser.unparse(s)).to eql <<~CODE
+    expect(unparse(s)).to eql <<~CODE
       b = syntax {
         2
       }
@@ -88,7 +88,7 @@ RSpec.describe Rds do
       }
     CODE
     s = Asts.eval(s)
-    expect(Unparser.unparse(s)).to eql <<~CODE
+    expect(unparse(s)).to eql <<~CODE
       c = syntax {
         3
       }
@@ -97,7 +97,7 @@ RSpec.describe Rds do
       }
     CODE
     s = Asts.eval(s)
-    expect(Unparser.unparse(s)).to eql "1 + 2 + 3"
+    expect(unparse(s)).to eql "1 + 2 + 3"
     v = Asts.eval(s)
     expect(v).to eql 6
   end

@@ -21,7 +21,9 @@ defmacro(:syntax_rules) do |stx|
 end
 
 def qwrap(x)
-  n(:block, n(:send, nil, :quasisyntax), n(:args), x)
+  n(:send, n(:const, nil, :SyntaxRules), :fix_locals,
+    n(:block, n(:send, nil, :quasisyntax), n(:args), x),
+    n(:array))
 end
 
 def transform_pattern(x, pvars, gvars, fixups)
@@ -95,6 +97,28 @@ class SyntaxRules
         n(:arg, x)
       in [:sym, name]
         n(:arg, name)
+      end
+    end
+
+    # In ruby code, raw symbols can refer to either locals or methods. In macro transformations,
+    # these tend to come through as method calls since the parser doesn't see a local assignment.
+    # Unparser writes [:send, nil, :a] as "a()", which rules it out as a local, though the macro
+    # may use it as one.
+    def fix_locals(x, locals)
+      return x unless x.is_a?(Parser::AST::Node)
+      case x
+      in [:block, call, [:args, *proc_args] => args, body]
+        locals += proc_args.map do |pa|
+          case pa
+          in [:procarg0, [_, name, *_]] then name
+          in [_, name, *_] then name
+          end
+        end
+        Parser::AST::Node.new(:block, [call, args, fix_locals(body, locals)], location: x.location)
+      in [:send, nil, name] if locals.include?(name)
+        Parser::AST::Node.new(:lvar, [name], location: x.location)
+      else
+        Parser::AST::Node.new(x.type, x.children.map { |c| fix_locals(c, locals) }, location: x.location)
       end
     end
   end

@@ -3,7 +3,7 @@
 require "unparser"
 
 def ast_text(node, pretty: false)
-  s = Unparser.unparse(node)
+  s = unparse(node)
   (pretty ? s : s.gsub(/\s*\n\s*/, " ")).strip
 end
 

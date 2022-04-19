@@ -47,6 +47,11 @@ RSpec.describe Rds do
     expect(nd(k)).to eql "quasisyntax { unsyntax(4) + y } @ ast\##{j.object_id}:5:2 @ loc_spec:44:55"
     l = Asts.eval(k)
     expect(nd(l)).to eql "4 + y @ ast\##{k.object_id}:2:2 @ ast\##{j.object_id}:6:4 @ loc_spec:44:69"
+
+    m = syntax { 1 }
+    m2 = quasisyntax { unsyntax(m) + 1 }
+    Asts.eval(m2)
+    expect(nd(m2.children[0])).to eql "1 @ loc_spec:51:17"
   end
 end
 # rubocop:enable all

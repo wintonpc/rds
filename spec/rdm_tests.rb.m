@@ -34,11 +34,12 @@ defmacro(:let2,
 )
 
 add_test "let2" do
+  d = 5
   x = let2(a: 1, b: 1 + 1) do
     c = 4
-    [a + 1, b + 1, c]
+    [a + 1, b + 1, c, d]
   end
-  expect(x).to eql [2, 3, 4]
+  expect(x).to eql [2, 3, 4, 5]
   expect { c }.to raise_error NameError
 end
 #endregion
