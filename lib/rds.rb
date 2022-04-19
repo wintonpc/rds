@@ -3,6 +3,8 @@
 require "parser/current"
 require "set"
 require "binding_of_caller"
+require "irb"
+require "reline"
 
 require_relative "./rds/version"
 require_relative "./rds/helpers"
@@ -62,7 +64,10 @@ class Asts
     private
 
     def get(path)
-      @asts_by_path.get_or_add(path) { Parser::CurrentRuby.parse(File.read(path), path) }
+      @asts_by_path.get_or_add(path) do
+        code = path.start_with?("irb\#") ? $irbs[path] : File.read(path)
+        Parser::CurrentRuby.parse(code, path)
+      end
     end
 
     def map(ast)
@@ -132,8 +137,15 @@ def fix_for_unparse(x)
   end
 end
 
+$irbs = {}
+
 def block_ast(p, full: false)
   file, beg_line, beg_col = p.source_region
+  if file == IRB.CurrentContext&.irb_path
+    file = "irb\##{$irbs.size}"
+    beg_line = 1
+    $irbs[file] = Reline::HISTORY[-1]
+  end
   node = Asts.for_block(file, beg_line, beg_col)
   if node.nil?
     raise "Couldn't find AST for #{p}"
@@ -249,6 +261,10 @@ end
 alias _s syntax
 alias _q quasisyntax
 alias _u unsyntax
+
+def evals(s)
+  Asts.eval(s, binding.of_caller(1))
+end
 
 def define_syntax(name, &transform)
   define_method(name) do |*_, &block|
